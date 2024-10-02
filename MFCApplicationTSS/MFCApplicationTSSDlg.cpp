@@ -187,6 +187,27 @@ HCURSOR CMFCApplicationTSSDlg::OnQueryDragIcon()
 
 void CMFCApplicationTSSDlg::OnFileOpen32771()
 {
+	//CString FileName;
+	//CFileDialog dlg(
+	//	true,                                 
+	//	0,               
+	//	0,                    
+	//	OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,    
+	//	0
+	//);
+
+	//auto result = dlg.DoModal();
+
+	CString	filename;
+	TCHAR szFilters[] = _T("Files(*.bmp,*.jpeg,*.jpg,*png)");
+	CFileDialog dlg(TRUE,_T(""), _T("*.jpg"), OFN_FILEMUSTEXIST,szFilters);
+	if (dlg.DoModal () == IDOK)
+	{
+        filename = dlg.GetPathName();
+	}
+	else
+        return;
+
 	// TODO: Add your command handler code here
 }
 
