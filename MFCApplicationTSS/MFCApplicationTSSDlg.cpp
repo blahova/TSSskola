@@ -226,8 +226,7 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 			{
 				AfxMessageBox(_T("Duplicate file."));
 			}
-			Gdiplus::Image* im;
-			im->FromFile(filePath);
+			
 		}
 		DisplayFiles();
 	}

@@ -17,7 +17,7 @@ struct Img
 {
 	std::vector<CString> m_paths;
 	std::vector<CString> m_names;
-	std::vector<Gdiplus::Image> *m_im;
+	std::vector<Gdiplus::Image*> m_im;
 };
 
 
