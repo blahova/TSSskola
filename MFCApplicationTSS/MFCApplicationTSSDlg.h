@@ -1,6 +1,9 @@
 
 // MFCApplicationTSSDlg.h : header file
 //
+#include <iostream>
+#include <vector>
+#include <string>
 
 #pragma once
 
@@ -8,6 +11,13 @@ enum
 {
 	WM_DRAW_IMAGE = WM_USER + 1,
 	WM_DRAW_HISTOGRAM
+};
+
+struct Img
+{
+	std::vector<CString> m_paths;
+	std::vector<CString> m_names;
+	std::vector<Gdiplus::Image> *m_im;
 };
 
 
@@ -57,6 +67,10 @@ public:
 	CRect m_rectHistogram;
 	CRect m_rectImage;
 	CStaticImage m_staticImage;
+	Img m_obr;
+
+	void DisplayFiles();
+
 	afx_msg void OnFileOpen32771();
 	afx_msg void OnFileClose32772();
 	afx_msg void OnSize(UINT nType, int cx, int cy);

@@ -7,9 +7,9 @@
 #include "MFCApplicationTSS.h"
 #include "MFCApplicationTSSDlg.h"
 #include <gdiplus.h>
-#include <stdio.h>
 
 using namespace Gdiplus;
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW

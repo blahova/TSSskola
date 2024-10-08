@@ -15,8 +15,6 @@
 
 
 
-
-
 void CStaticImage::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 {
 	GetParent()->SendMessage(WM_DRAW_IMAGE, (WPARAM)lpDrawItemStruct);
@@ -185,36 +183,81 @@ HCURSOR CMFCApplicationTSSDlg::OnQueryDragIcon()
 
 
 
+void CMFCApplicationTSSDlg::DisplayFiles()
+{
+	m_fileList.DeleteAllItems();
+
+	for (int i = 0; i < m_obr.m_names.size(); ++i)
+	{
+		m_fileList.InsertItem(i, m_obr.m_names[i]);
+	}
+}
+
 void CMFCApplicationTSSDlg::OnFileOpen32771()
 {
-	//CString FileName;
-	//CFileDialog dlg(
-	//	true,                                 
-	//	0,               
-	//	0,                    
-	//	OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,    
-	//	0
-	//);
+	TCHAR Filters[] = _T("Image Files (*.bmp;*.jpeg;*.jpg;*.png)|*.bmp;*.jpeg;*.jpg;*.png||");
 
-	//auto result = dlg.DoModal();
+	TCHAR InitialDir[MAX_PATH];
+	GetCurrentDirectory(MAX_PATH, InitialDir);
 
-	CString	filename;
-	TCHAR szFilters[] = _T("Files(*.bmp,*.jpeg,*.jpg,*png)");
-	CFileDialog dlg(TRUE,_T(""), _T("*.jpg"), OFN_FILEMUSTEXIST,szFilters);
-	if (dlg.DoModal () == IDOK)
+	CFileDialog dlg(TRUE, _T(""), _T(""), OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT, Filters);
+	dlg.m_ofn.lpstrInitialDir = InitialDir; 
+
+
+
+	if (dlg.DoModal() == IDOK)
 	{
-        filename = dlg.GetPathName();
+		POSITION pos(dlg.GetStartPosition());
+		while (pos)
+		{
+			CString filePath = dlg.GetNextPathName(pos);
+			CString fileName;
+
+			if (std::find(m_obr.m_paths.begin(), m_obr.m_paths.end(), filePath) == m_obr.m_paths.end())
+            {
+				m_obr.m_paths.push_back(filePath);
+
+                int posOfBackslash = filePath.ReverseFind(_T('\\'));
+                fileName = filePath.Right(filePath.GetLength() - posOfBackslash - 1);
+
+				m_obr.m_names.push_back(fileName);
+            }
+			else
+			{
+				AfxMessageBox(_T("Duplicate file."));
+			}
+			Gdiplus::Image* im;
+			im->FromFile(filePath);
+		}
+		DisplayFiles();
 	}
 	else
-        return;
-
-	// TODO: Add your command handler code here
+	{
+		return;
+	}
 }
 
 
 void CMFCApplicationTSSDlg::OnFileClose32772()
 {
-	// TODO: Add your command handler code here
+	POSITION pos = m_fileList.GetFirstSelectedItemPosition();
+	if (pos == NULL)
+	{
+		AfxMessageBox(_T("No file was selected."));
+		return;
+	}
+
+	int selectedIndex = m_fileList.GetNextSelectedItem(pos);
+	CString fileName = m_obr.m_names[selectedIndex];
+	int response = AfxMessageBox(_T("Do you want to delete file: ") + fileName + _T("?"), MB_YESNO | MB_ICONQUESTION);
+
+	if (response == IDYES)
+	{
+		m_obr.m_paths.erase(m_obr.m_paths.begin() + selectedIndex);
+		m_obr.m_names.erase(m_obr.m_names.begin() + selectedIndex);
+
+		DisplayFiles(); 
+	}
 }
 
 
