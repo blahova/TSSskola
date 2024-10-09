@@ -187,10 +187,22 @@ void CMFCApplicationTSSDlg::DisplayFiles()
 {
 	m_fileList.DeleteAllItems();
 
-	for (int i = 0; i < m_obr.m_names.size(); ++i)
+	for (int i = 0; i < m_images.size(); ++i)
 	{
-		m_fileList.InsertItem(i, m_obr.m_names[i]);
+		m_fileList.InsertItem(i, m_images[i].m_name);
 	}
+}
+
+bool CMFCApplicationTSSDlg::Duplicate(CString path)
+{
+	for (int i = 0; i < m_images.size(); i++)
+	{
+		if (m_images[i].m_path == path)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void CMFCApplicationTSSDlg::OnFileOpen32771()
@@ -213,14 +225,16 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 			CString filePath = dlg.GetNextPathName(pos);
 			CString fileName;
 
-			if (std::find(m_obr.m_paths.begin(), m_obr.m_paths.end(), filePath) == m_obr.m_paths.end())
+			if (Duplicate(filePath))
             {
-				m_obr.m_paths.push_back(filePath);
+				Img im;
+				im.m_path = filePath;
 
                 int posOfBackslash = filePath.ReverseFind(_T('\\'));
                 fileName = filePath.Right(filePath.GetLength() - posOfBackslash - 1);
 
-				m_obr.m_names.push_back(fileName);
+				im.m_name = fileName;
+				m_images.push_back(im);
             }
 			else
 			{
@@ -247,13 +261,12 @@ void CMFCApplicationTSSDlg::OnFileClose32772()
 	}
 
 	int selectedIndex = m_fileList.GetNextSelectedItem(pos);
-	CString fileName = m_obr.m_names[selectedIndex];
+	CString fileName = m_images[selectedIndex].m_name;
 	int response = AfxMessageBox(_T("Do you want to delete file: ") + fileName + _T("?"), MB_YESNO | MB_ICONQUESTION);
 
 	if (response == IDYES)
 	{
-		m_obr.m_paths.erase(m_obr.m_paths.begin() + selectedIndex);
-		m_obr.m_names.erase(m_obr.m_names.begin() + selectedIndex);
+		m_images.erase(m_images.begin() + selectedIndex);
 
 		DisplayFiles(); 
 	}

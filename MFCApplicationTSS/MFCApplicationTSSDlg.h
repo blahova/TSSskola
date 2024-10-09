@@ -15,9 +15,9 @@ enum
 
 struct Img
 {
-	std::vector<CString> m_paths;
-	std::vector<CString> m_names;
-	std::vector<Gdiplus::Image*> m_im;
+	CString m_path;
+	CString m_name;
+	
 };
 
 
@@ -67,9 +67,10 @@ public:
 	CRect m_rectHistogram;
 	CRect m_rectImage;
 	CStaticImage m_staticImage;
-	Img m_obr;
+	std::vector<Img> m_images;
 
 	void DisplayFiles();
+	bool Duplicate(CString path);
 
 	afx_msg void OnFileOpen32771();
 	afx_msg void OnFileClose32772();
