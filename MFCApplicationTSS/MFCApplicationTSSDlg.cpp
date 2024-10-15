@@ -45,6 +45,10 @@ public:
 protected:
 	DECLARE_MESSAGE_MAP()
 
+public:
+//	afx_msg void OnHistogramR();
+//	afx_msg void OnHistogramG();
+//	afx_msg void OnHistogramB();
 };
 
 CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
@@ -57,6 +61,9 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
+//	ON_COMMAND(ID_HISTOGRAM_R, &CAboutDlg::OnHistogramR)
+//	ON_COMMAND(ID_HISTOGRAM_G, &CAboutDlg::OnHistogramG)
+//	ON_COMMAND(ID_HISTOGRAM_B, &CAboutDlg::OnHistogramB)
 END_MESSAGE_MAP()
 
 
@@ -87,6 +94,10 @@ BEGIN_MESSAGE_MAP(CMFCApplicationTSSDlg, CDialogEx)
 	ON_WM_SIZE()
 	ON_MESSAGE(WM_DRAW_IMAGE, OnDrawImage)
 	ON_MESSAGE(WM_DRAW_HISTOGRAM, OnDrawHist)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_FILE_LIST, &CMFCApplicationTSSDlg::OnLvnItemchangedFileList)
+	ON_COMMAND(ID_HISTOGRAM_B, &CMFCApplicationTSSDlg::OnHistogramB)
+	ON_COMMAND(ID_HISTOGRAM_G, &CMFCApplicationTSSDlg::OnHistogramG)
+	ON_COMMAND(ID_HISTOGRAM_R, &CMFCApplicationTSSDlg::OnHistogramR)
 END_MESSAGE_MAP()
 
 
@@ -191,6 +202,14 @@ void CMFCApplicationTSSDlg::DisplayFiles()
 	{
 		m_fileList.InsertItem(i, m_images[i].m_name);
 	}
+
+	if (m_images.size() > 0)
+	{
+		m_fileList.SetItemState(0, LVIS_SELECTED , LVIS_SELECTED);
+
+		m_staticImage.Invalidate(FALSE);
+
+	}
 }
 
 bool CMFCApplicationTSSDlg::Duplicate(CString path)
@@ -234,7 +253,18 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
                 fileName = filePath.Right(filePath.GetLength() - posOfBackslash - 1);
 
 				im.m_name = fileName;
-				m_images.push_back(im);
+
+				im.m_image = Gdiplus::Image::FromFile(filePath);
+
+				if (im.m_image && im.m_image->GetLastStatus() == Gdiplus::Ok)
+				{
+					m_images.push_back(im); 
+				}
+				else
+				{
+					AfxMessageBox(_T("Failed to load the image."));
+					delete im.m_image; 
+				}
             }
 			else
 			{
@@ -269,6 +299,7 @@ void CMFCApplicationTSSDlg::OnFileClose32772()
 		m_images.erase(m_images.begin() + selectedIndex);
 
 		DisplayFiles(); 
+		Invalidate(TRUE);
 	}
 }
 
@@ -295,9 +326,45 @@ LRESULT CMFCApplicationTSSDlg::OnDrawImage(WPARAM wParam, LPARAM lParam)
 	LPDRAWITEMSTRUCT st = (LPDRAWITEMSTRUCT)wParam;
 
 	//CDC* pDC = CDC::FromHandle(st->hDC);
-	auto gr = Gdiplus::Graphics::FromHDC(st->hDC);
-	//gr -> DrawImage()
+	Gdiplus::Graphics gr(st->hDC);
 
+	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+	if (selected == -1 || selected >= m_images.size())
+	{
+		return S_OK;
+	}
+
+	Gdiplus::Image* pImage = m_images[selected].m_image;
+
+	if (pImage && pImage->GetLastStatus() == Gdiplus::Ok)
+	{
+		UINT imgWidth = pImage->GetWidth();
+		UINT imgHeight = pImage->GetHeight();
+
+		CRect rect;
+		m_staticImage.GetClientRect(&rect);
+		int areaW = rect.Width();
+		int areaH = rect.Height();
+
+		// zvacsenie a zmensenie
+		double scaleX = (double)(areaW) / imgWidth;
+		double scaleY = (double)(areaH) / imgHeight;
+		double scale = min(scaleX, scaleY);  //podla toho ci je obrazok na vysku alebo sirku sa vybera
+
+		
+		int newWidth = (int)(imgWidth * scale);
+		int newHeight = (int)(imgHeight * scale);
+
+		
+		int xPos = (areaW - newWidth) / 2;
+		int yPos = (areaH - newHeight) / 2;
+
+
+		gr.Clear(Gdiplus::Color::White);
+
+		
+		gr.DrawImage(pImage, xPos, yPos, newWidth, newHeight);
+	}
 
 	return S_OK;
 }
@@ -307,3 +374,38 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 	return S_OK;
 }
 
+
+
+void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	
+	m_staticImage.Invalidate(FALSE);
+
+	*pResult = 0;
+}
+
+
+
+void CMFCApplicationTSSDlg::OnHistogramB()
+{
+	m_BlueChecked = !m_BlueChecked;
+	CMenu* pMenu = GetMenu();
+	pMenu->CheckMenuItem(ID_HISTOGRAM_B, m_BlueChecked ? MF_CHECKED : MF_UNCHECKED);
+}
+
+
+void CMFCApplicationTSSDlg::OnHistogramG()
+{
+	m_GreenChecked = !m_GreenChecked;
+	CMenu* pMenu = GetMenu();
+	pMenu->CheckMenuItem(ID_HISTOGRAM_G, m_GreenChecked ? MF_CHECKED : MF_UNCHECKED);
+}
+
+
+void CMFCApplicationTSSDlg::OnHistogramR()
+{
+	m_RedChecked = !m_RedChecked;
+	CMenu* pMenu = GetMenu();
+	pMenu->CheckMenuItem(ID_HISTOGRAM_R, m_RedChecked ? MF_CHECKED : MF_UNCHECKED);
+}

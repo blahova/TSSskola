@@ -17,7 +17,10 @@ struct Img
 {
 	CString m_path;
 	CString m_name;
-	
+	Gdiplus::Image* m_image;
+	std::vector<UINT> m_red;
+	std::vector<UINT> m_green;
+	std::vector<UINT> m_blue;
 };
 
 
@@ -69,6 +72,13 @@ public:
 	CStaticImage m_staticImage;
 	std::vector<Img> m_images;
 
+	bool m_RedChecked = FALSE;
+	bool m_GreenChecked = FALSE;
+	bool m_BlueChecked = FALSE;
+
+	
+
+
 	void DisplayFiles();
 	bool Duplicate(CString path);
 
@@ -77,4 +87,8 @@ public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg LRESULT OnDrawImage(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDrawHist(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnHistogramB();
+	afx_msg void OnHistogramG();
+	afx_msg void OnHistogramR();
 };
