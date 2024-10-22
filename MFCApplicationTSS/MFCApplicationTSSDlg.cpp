@@ -194,6 +194,48 @@ HCURSOR CMFCApplicationTSSDlg::OnQueryDragIcon()
 
 
 
+
+void CMFCApplicationTSSDlg::CalculateHistogram(Img& image)
+{
+	if (!image.m_image || image.m_image->GetLastStatus() != Gdiplus::Ok)
+	{
+		return; // Image is not valid
+	}
+
+	// Clear any existing histogram data
+	image.m_red.assign(256, 0);
+	image.m_green.assign(256, 0);
+	image.m_blue.assign(256, 0);
+
+	// Lock the bitmap for reading
+	Gdiplus::Bitmap* bitmap = static_cast<Gdiplus::Bitmap*>(image.m_image);
+	Gdiplus::Rect rect(0, 0, bitmap->GetWidth(), bitmap->GetHeight());
+	Gdiplus::BitmapData bitmapData;
+
+	if (bitmap->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppRGB, &bitmapData) == Gdiplus::Ok)
+	{
+		BYTE* pixels = (BYTE*)bitmapData.Scan0;
+		int stride = bitmapData.Stride;
+
+		for (UINT y = 0; y < bitmap->GetHeight(); ++y)
+		{
+			BYTE* row = pixels + y * stride;
+			for (UINT x = 0; x < bitmap->GetWidth(); ++x)
+			{
+				BYTE blue = row[x * 4];
+				BYTE green = row[x * 4 + 1];
+				BYTE red = row[x * 4 + 2];
+
+				image.m_red[red]++;
+				image.m_green[green]++;
+				image.m_blue[blue]++;
+			}
+		}
+
+		bitmap->UnlockBits(&bitmapData);
+	}
+}
+
 void CMFCApplicationTSSDlg::DisplayFiles()
 {
 	m_fileList.DeleteAllItems();
@@ -234,8 +276,6 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 	CFileDialog dlg(TRUE, _T(""), _T(""), OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT, Filters);
 	dlg.m_ofn.lpstrInitialDir = InitialDir; 
 
-
-
 	if (dlg.DoModal() == IDOK)
 	{
 		POSITION pos(dlg.GetStartPosition());
@@ -258,6 +298,7 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 
 				if (im.m_image && im.m_image->GetLastStatus() == Gdiplus::Ok)
 				{
+					CalculateHistogram(im);
 					m_images.push_back(im); 
 				}
 				else
@@ -270,7 +311,6 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 			{
 				AfxMessageBox(_T("Duplicate file."));
 			}
-			
 		}
 		DisplayFiles();
 	}
@@ -358,10 +398,6 @@ LRESULT CMFCApplicationTSSDlg::OnDrawImage(WPARAM wParam, LPARAM lParam)
 		
 		int xPos = (areaW - newWidth) / 2;
 		int yPos = (areaH - newHeight) / 2;
-
-
-		gr.Clear(Gdiplus::Color::White);
-
 		
 		gr.DrawImage(pImage, xPos, yPos, newWidth, newHeight);
 	}
@@ -371,6 +407,67 @@ LRESULT CMFCApplicationTSSDlg::OnDrawImage(WPARAM wParam, LPARAM lParam)
 
 LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 {
+	LPDRAWITEMSTRUCT st = (LPDRAWITEMSTRUCT)wParam;
+	Gdiplus::Graphics gr(st->hDC);
+	//gr.Clear(Gdiplus::Color::White);
+
+	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+	if (selected == -1 || selected >= m_images.size())
+	{
+		return S_OK;
+	}
+
+	const Img& selectedImg = m_images[selected];
+	if (selectedImg.m_red.empty() || selectedImg.m_green.empty() || selectedImg.m_blue.empty())
+	{
+		return S_OK;
+	}
+
+	CRect rect;
+	m_staticHistogram.GetClientRect(&rect);
+	int width = rect.Width();
+	int height = rect.Height();
+
+	//najdem maximalnu hodnotu v histograme, ci je R G alebo B, podla toho sa bude skalovat
+	int maxValue = 0;
+	for (int i = 0; i < 256; ++i)
+	{
+		maxValue = max(maxValue, selectedImg.m_red[i]);
+		maxValue = max(maxValue, selectedImg.m_green[i]);
+		maxValue = max(maxValue, selectedImg.m_blue[i]);
+	}
+
+
+	if (m_RedChecked)
+	{
+		Gdiplus::Pen redPen(Gdiplus::Color::Red);
+		for (int i = 0; i < 256; ++i)
+		{
+			int lineHeight = (int)(((double)(selectedImg.m_red[i]) / maxValue) * height);
+			gr.DrawLine(&redPen, i * width / 256, height, i * width / 256, height - lineHeight);
+		}
+	}
+
+	if (m_GreenChecked)
+	{
+		Gdiplus::Pen greenPen(Gdiplus::Color::Green);
+		for (int i = 0; i < 256; ++i)
+		{
+			int lineHeight = (int)(((double)(selectedImg.m_green[i]) / maxValue) * height);
+			gr.DrawLine(&greenPen, i * width / 256, height, i * width / 256, height - lineHeight);
+		}
+	}
+
+	if (m_BlueChecked)
+	{
+		Gdiplus::Pen bluePen(Gdiplus::Color::Blue);
+		for (int i = 0; i < 256; ++i)
+		{
+			int lineHeight = (int)(((double)(selectedImg.m_blue[i]) / maxValue) * height);
+			gr.DrawLine(&bluePen, i * width / 256, height, i * width / 256, height - lineHeight);
+		}
+	}
+
 	return S_OK;
 }
 
@@ -380,8 +477,7 @@ void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pRe
 {
 	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
 	
-	m_staticImage.Invalidate(FALSE);
-
+	Invalidate(TRUE);
 	*pResult = 0;
 }
 
@@ -392,6 +488,7 @@ void CMFCApplicationTSSDlg::OnHistogramB()
 	m_BlueChecked = !m_BlueChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_B, m_BlueChecked ? MF_CHECKED : MF_UNCHECKED);
+	Invalidate(TRUE);
 }
 
 
@@ -400,6 +497,7 @@ void CMFCApplicationTSSDlg::OnHistogramG()
 	m_GreenChecked = !m_GreenChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_G, m_GreenChecked ? MF_CHECKED : MF_UNCHECKED);
+	Invalidate(TRUE);
 }
 
 
@@ -408,4 +506,5 @@ void CMFCApplicationTSSDlg::OnHistogramR()
 	m_RedChecked = !m_RedChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_R, m_RedChecked ? MF_CHECKED : MF_UNCHECKED);
+	Invalidate(TRUE);
 }
