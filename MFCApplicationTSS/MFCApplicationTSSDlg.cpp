@@ -7,6 +7,7 @@
 #include "MFCApplicationTSS.h"
 #include "MFCApplicationTSSDlg.h"
 #include "afxdialogex.h"
+#include "Library.h"
 
 
 #ifdef _DEBUG
@@ -197,44 +198,27 @@ HCURSOR CMFCApplicationTSSDlg::OnQueryDragIcon()
 
 void CMFCApplicationTSSDlg::CalculateHistogram(Img& image)
 {
-	if (!image.m_image || image.m_image->GetLastStatus() != Gdiplus::Ok)
+	if (!image.m_image || image.m_image->GetLastStatus() != Gdiplus::Ok )
 	{
-		return; // Image is not valid
+		return; 
 	}
-
-	// Clear any existing histogram data
-	image.m_red.assign(256, 0);
-	image.m_green.assign(256, 0);
-	image.m_blue.assign(256, 0);
-
-	// Lock the bitmap for reading
 	Gdiplus::Bitmap* bitmap = static_cast<Gdiplus::Bitmap*>(image.m_image);
 	Gdiplus::Rect rect(0, 0, bitmap->GetWidth(), bitmap->GetHeight());
 	Gdiplus::BitmapData bitmapData;
 
-	if (bitmap->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppRGB, &bitmapData) == Gdiplus::Ok)
-	{
-		BYTE* pixels = (BYTE*)bitmapData.Scan0;
-		int stride = bitmapData.Stride;
+	bitmap->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppRGB, &bitmapData);
 
-		for (UINT y = 0; y < bitmap->GetHeight(); ++y)
-		{
-			BYTE* row = pixels + y * stride;
-			for (UINT x = 0; x < bitmap->GetWidth(); ++x)
-			{
-				BYTE blue = row[x * 4];
-				BYTE green = row[x * 4 + 1];
-				BYTE red = row[x * 4 + 2];
+	const BYTE* pixels = (BYTE*)bitmapData.Scan0;
+	int stride = bitmapData.Stride;
+	int height = bitmapData.Height;
+	int width = bitmapData.Width;
 
-				image.m_red[red]++;
-				image.m_green[green]++;
-				image.m_blue[blue]++;
-			}
-		}
-
-		bitmap->UnlockBits(&bitmapData);
-	}
+	CalculateHistogramFromPixels(pixels, width, height, stride, image.m_red, image.m_green, image.m_blue);
+	
+	bitmap->UnlockBits(&bitmapData);
+	image.bCalculated = true;
 }
+
 
 void CMFCApplicationTSSDlg::DisplayFiles()
 {
@@ -265,6 +249,7 @@ bool CMFCApplicationTSSDlg::Duplicate(CString path)
 	}
 	return true;
 }
+
 
 void CMFCApplicationTSSDlg::OnFileOpen32771()
 {
@@ -298,7 +283,6 @@ void CMFCApplicationTSSDlg::OnFileOpen32771()
 
 				if (im.m_image && im.m_image->GetLastStatus() == Gdiplus::Ok)
 				{
-					CalculateHistogram(im);
 					m_images.push_back(im); 
 				}
 				else
@@ -409,7 +393,6 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 {
 	LPDRAWITEMSTRUCT st = (LPDRAWITEMSTRUCT)wParam;
 	Gdiplus::Graphics gr(st->hDC);
-	//gr.Clear(Gdiplus::Color::White);
 
 	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
 	if (selected == -1 || selected >= m_images.size())
@@ -476,7 +459,18 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
-	
+
+	if (m_BlueChecked || m_RedChecked || m_GreenChecked)
+	{
+		int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+		if (selected != -1 && selected < m_images.size())
+		{
+			if (!m_images[selected].bCalculated)
+			{
+				CalculateHistogram(m_images[selected]);
+			}
+		}
+	}
 	Invalidate(TRUE);
 	*pResult = 0;
 }
@@ -488,6 +482,15 @@ void CMFCApplicationTSSDlg::OnHistogramB()
 	m_BlueChecked = !m_BlueChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_B, m_BlueChecked ? MF_CHECKED : MF_UNCHECKED);
+
+	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+	if (selected != -1 && selected < m_images.size())
+	{
+		if (!m_images[selected].bCalculated)
+		{
+			CalculateHistogram(m_images[selected]);
+		}
+	}
 	Invalidate(TRUE);
 }
 
@@ -497,6 +500,14 @@ void CMFCApplicationTSSDlg::OnHistogramG()
 	m_GreenChecked = !m_GreenChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_G, m_GreenChecked ? MF_CHECKED : MF_UNCHECKED);
+	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+	if (selected != -1 && selected < m_images.size())
+	{
+		if (!m_images[selected].bCalculated)
+		{
+			CalculateHistogram(m_images[selected]);
+		}
+	}
 	Invalidate(TRUE);
 }
 
@@ -506,5 +517,13 @@ void CMFCApplicationTSSDlg::OnHistogramR()
 	m_RedChecked = !m_RedChecked;
 	CMenu* pMenu = GetMenu();
 	pMenu->CheckMenuItem(ID_HISTOGRAM_R, m_RedChecked ? MF_CHECKED : MF_UNCHECKED);
+	int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
+	if (selected != -1 && selected < m_images.size())
+	{
+		if (!m_images[selected].bCalculated)
+		{
+			CalculateHistogram(m_images[selected]);
+		}
+	}
 	Invalidate(TRUE);
 }
