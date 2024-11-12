@@ -4,13 +4,16 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #pragma once
 
 enum
 {
 	WM_DRAW_IMAGE = WM_USER + 1,
-	WM_DRAW_HISTOGRAM
+	WM_DRAW_HISTOGRAM,
+	WM_HISTOGRAM_CALCULATED
 };
 
 struct Img
@@ -78,7 +81,7 @@ public:
 	bool m_GreenChecked = FALSE;
 	bool m_BlueChecked = FALSE;
 
-	void CalculateHistogram(Img& image);
+	void CheckHistogram(Img& image);
 
 	void DisplayFiles();
 	bool Duplicate(CString path);
@@ -88,6 +91,7 @@ public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg LRESULT OnDrawImage(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDrawHist(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnHistogramCalculated(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnHistogramB();
 	afx_msg void OnHistogramG();

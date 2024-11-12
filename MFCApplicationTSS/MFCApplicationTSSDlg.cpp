@@ -95,6 +95,7 @@ BEGIN_MESSAGE_MAP(CMFCApplicationTSSDlg, CDialogEx)
 	ON_WM_SIZE()
 	ON_MESSAGE(WM_DRAW_IMAGE, OnDrawImage)
 	ON_MESSAGE(WM_DRAW_HISTOGRAM, OnDrawHist)
+	ON_MESSAGE(WM_HISTOGRAM_CALCULATED, OnHistogramCalculated)
 	ON_NOTIFY(LVN_ITEMCHANGED, IDC_FILE_LIST, &CMFCApplicationTSSDlg::OnLvnItemchangedFileList)
 	ON_COMMAND(ID_HISTOGRAM_B, &CMFCApplicationTSSDlg::OnHistogramB)
 	ON_COMMAND(ID_HISTOGRAM_G, &CMFCApplicationTSSDlg::OnHistogramG)
@@ -215,10 +216,19 @@ void CMFCApplicationTSSDlg::CheckHistogram(Img& image)
 	int width = bitmapData.Width;
 
 	//tu bude ten thread
-	CalculateHistogramFromPixels(pixels, width, height, stride, image.m_red, image.m_green, image.m_blue);
-	
-	bitmap->UnlockBits(&bitmapData);
-	image.bCalculated = true;
+	std::thread([this, &image, pixels, width, height, stride]() {
+		image.bStarted = true;
+		Sleep(10000);
+		CalculateHistogramFromPixels(pixels, width, height, stride, image.m_red, image.m_green, image.m_blue);
+
+
+		image.bCalculated = true;
+		PostMessage(WM_HISTOGRAM_CALCULATED);
+
+		}).detach(); 
+
+	image.bStarted = false;	//uz sa dokoncil tak sa started rusi
+	bitmap->UnlockBits(&bitmapData); 
 }
 
 
@@ -317,6 +327,7 @@ void CMFCApplicationTSSDlg::OnFileClose32772()
 	}
 
 	int selectedIndex = m_fileList.GetNextSelectedItem(pos);
+
 	CString fileName = m_images[selectedIndex].m_name;
 	int response = AfxMessageBox(_T("Do you want to delete file: ") + fileName + _T("?"), MB_YESNO | MB_ICONQUESTION);
 
@@ -461,7 +472,7 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
-
+	Invalidate(TRUE);
 	if (m_BlueChecked || m_RedChecked || m_GreenChecked)
 	{
 		int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
@@ -469,8 +480,8 @@ void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pRe
 		{
 			CheckHistogram(m_images[selected]);
 		}
+		Invalidate(TRUE);
 	}
-	Invalidate(TRUE);
 	*pResult = 0;
 }
 
@@ -516,4 +527,10 @@ void CMFCApplicationTSSDlg::OnHistogramR()
 		CheckHistogram(m_images[selected]);
 	}
 	Invalidate(TRUE);
+}
+
+LRESULT CMFCApplicationTSSDlg::OnHistogramCalculated(WPARAM wParam, LPARAM lParam)
+{
+	Invalidate(TRUE);
+	return S_OK;
 }
