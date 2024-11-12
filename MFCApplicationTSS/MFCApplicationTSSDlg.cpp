@@ -531,6 +531,6 @@ void CMFCApplicationTSSDlg::OnHistogramR()
 
 LRESULT CMFCApplicationTSSDlg::OnHistogramCalculated(WPARAM wParam, LPARAM lParam)
 {
-	Invalidate(TRUE);
+	m_staticHistogram.Invalidate(TRUE);
 	return S_OK;
 }
