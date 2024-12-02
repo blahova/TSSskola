@@ -25,13 +25,15 @@ struct Img
 	CString m_name;
 	Gdiplus::Image* m_image;
 	std::vector<Gdiplus::Image*> m_sepia= std::vector<Gdiplus::Image*>(3, nullptr);
-	std::vector<int> m_red;
-	std::vector<int> m_green;
-	std::vector<int> m_blue;
+	int m_red[256] = { 0 };
+	int m_green[256] = { 0 };
+	int m_blue[256] = { 0 };
 	bool bCalculated = false;
 	bool bStarted = false;
 
+
 	bool bSepiaInProgress = false;
+
 };
 
 
@@ -83,6 +85,8 @@ public:
 	CStaticImage m_staticImage;
 	std::vector<Img> m_images;
 
+	std::mutex mutex;
+
 	bool bRedChecked = false;
 	bool bGreenChecked = false;
 	bool bBlueChecked = false;
@@ -91,14 +95,14 @@ public:
 	bool bSepia2 = false;
 	bool bSepia3 = false;
 
-	std::mutex sepiaMutex;
 
 
 	void CheckHistogram(Img& image);
 	void CheckSepia(int index);
-	void CalculateSepia1(Img& image);
-	void CalculateSepia2(Img& image);
-	void CalculateSepia3(Img& image);
+	void CalculateSepia1(Gdiplus::Bitmap* pix);
+	void CalculateSepia2(Gdiplus::Bitmap* pix);
+	void CalculateSepia3(Gdiplus::Bitmap* pix);
+	void SepiaThread(Img& image, int which);
 
 	void DisplayFiles();
 	bool Duplicate(CString path);

@@ -205,26 +205,27 @@ HCURSOR CMFCApplicationTSSDlg::OnQueryDragIcon()
 void CMFCApplicationTSSDlg::CheckHistogram(Img& image)
 {
 	if (image.bCalculated || image.bStarted || !image.m_image || image.m_image->GetLastStatus() != Gdiplus::Ok)
-	{ //kontroluje ci je vypocitany, ci nahodou nema uz zacaty thread, vtedy sa returne hned
+	{
 		return;
 	}
 
 	Img img = image;
+	Gdiplus::Image* imgCopy = img.m_image->Clone();
 
-	Gdiplus::Bitmap* bitmap = static_cast<Gdiplus::Bitmap*>(img.m_image);
-	Gdiplus::Rect rect(0, 0, bitmap->GetWidth(), bitmap->GetHeight());
+	Gdiplus::Bitmap* bitmap = static_cast<Gdiplus::Bitmap*>(imgCopy);
+	UINT width = bitmap->GetWidth();
+	UINT height = bitmap->GetHeight();
+	Gdiplus::Rect rect(0, 0, width, height);
 	Gdiplus::BitmapData bitmapData;
 
 	if (bitmap->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppRGB, &bitmapData) == Gdiplus::Ok)
 	{
-		const BYTE* pixels = static_cast<BYTE*>(bitmapData.Scan0);
+		BYTE* pixels = static_cast<BYTE*>(bitmapData.Scan0);
 		int stride = bitmapData.Stride;
-		int height = bitmapData.Height;
-		int width = bitmapData.Width;
 
 		img.bStarted = true;
-		std::thread([this, &image, img, pixels, width, height, stride]() mutable{
-			Sleep(5000);
+		std::thread([this, &image, img, pixels, width, height, stride]() mutable {
+			//Sleep(5000);
 			CalculateHistogramFromPixels(pixels, width, height, stride, img.m_red, img.m_green, img.m_blue);
 
 			bool bNotify = false;
@@ -242,6 +243,7 @@ void CMFCApplicationTSSDlg::CheckHistogram(Img& image)
 					//ASSERT(NULL);
 				}
 			}
+
 			if (bNotify)
 			{
 				PostMessage(WM_HISTOGRAM_CALCULATED);
@@ -259,100 +261,176 @@ void CMFCApplicationTSSDlg::CheckSepia(int index)
 		return;
 	}
 	
-
-	if (bSepia1 && m_images[index].m_sepia[1] == nullptr) CalculateSepia1(m_images[index]);
-	else if (bSepia2 && m_images[index].m_sepia[2] == nullptr) CalculateSepia2(m_images[index]);
-	else if (bSepia3 && m_images[index].m_sepia[3] == nullptr) CalculateSepia3(m_images[index]);
+	
+	if (bSepia1 && m_images[index].m_sepia[0] == nullptr) SepiaThread(m_images[index],1);
+	else if (bSepia2 && m_images[index].m_sepia[1] == nullptr) SepiaThread(m_images[index],2);
+	else if (bSepia3 && m_images[index].m_sepia[2] == nullptr) SepiaThread(m_images[index],3);
 	else return;
 }
 
-void CMFCApplicationTSSDlg::CalculateSepia1(Img& image)
+void CMFCApplicationTSSDlg::CalculateSepia1(Gdiplus::Bitmap* pix)
 {
-	Img img = image;
+	UINT width = pix->GetWidth();
+	UINT height = pix->GetHeight();
 
-	Gdiplus::Bitmap* bitmap = static_cast<Gdiplus::Bitmap*>(img.m_image);
-	Gdiplus::Rect rect(0, 0, bitmap->GetWidth(), bitmap->GetHeight());
-	Gdiplus::Image* im = img.m_image->Clone();
-
-	Gdiplus::Bitmap* newBitmap = static_cast<Gdiplus::Bitmap*>(im);
+	Gdiplus::Rect rect(0, 0, width, height);
 	Gdiplus::BitmapData bitmapData;
 
-	if (newBitmap->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat32bppRGB, &bitmapData) == Gdiplus::Ok)
+	if (pix->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, &bitmapData) == Gdiplus::Ok)
 	{
 		BYTE* pixels = static_cast<BYTE*>(bitmapData.Scan0);
 		int stride = bitmapData.Stride;
-		int height = bitmapData.Height;
-		int width = bitmapData.Width;
 
-		img.bSepiaInProgress = true;
-		std::thread([this, &image, img, newBitmap, bitmapData, pixels, width, height, stride]() mutable {
-			//Sleep(5000);
-
-			for (int y = 0; y < height; y++)
+		for (UINT y = 0; y < height; ++y)
+		{
+			for (UINT x = 0; x < width; ++x)
 			{
-				BYTE* row = pixels + (y * stride);
-				for (int x = 0; x < width; x++)
-				{
-					BYTE* pixel = row + (x * 4); 
+				BYTE B = pixels[y * stride + x * 4];
+				BYTE G = pixels[y * stride + x * 4 + 1];
+				BYTE R = pixels[y * stride + x * 4 + 2];
 
+				BYTE* pixel = pixels + (y * stride) + (x * 4);
 
-					BYTE B = pixel[0]; 
-					BYTE G = pixel[1]; 
-					BYTE R = pixel[2]; 
+				int sepiaR = static_cast<int>((R * 0.393) + (G * 0.769) + (B * 0.189));
+				int sepiaG = static_cast<int>((R * 0.349) + (G * 0.686) + (B * 0.168));
+				int sepiaB = static_cast<int>((R * 0.272) + (G * 0.534) + (B * 0.131));
 
-					int sepiaR = static_cast<int>((R * 0.393) + (G * 0.769) + (B * 0.189));
-					int sepiaG = static_cast<int>((R * 0.349) + (G * 0.686) + (B * 0.168));
-					int sepiaB = static_cast<int>((R * 0.272) + (G * 0.534) + (B * 0.131));
-
-					pixel[2] = static_cast<BYTE>((sepiaR < 255) ? sepiaR : 255); 
-					pixel[1] = static_cast<BYTE>((sepiaG < 255) ? sepiaG : 255); 
-					pixel[0] = static_cast<BYTE>((sepiaB < 255) ? sepiaB : 255); 
-				}
+				pixel[2] = static_cast<BYTE>((sepiaR < 255) ? sepiaR : 255);
+				pixel[1] = static_cast<BYTE>((sepiaG < 255) ? sepiaG : 255);
+				pixel[0] = static_cast<BYTE>((sepiaB < 255) ? sepiaB : 255);
 			}
-
-
-			static_cast<Gdiplus::Bitmap*>(newBitmap)->UnlockBits(&bitmapData);
-
-			bool bNotify = false;
-			{
-				std::mutex l;
-				if (img.m_name == image.m_name)
-				{
-					if (img.m_sepia[1] != nullptr)
-					{
-						delete img.m_sepia[1];
-					}
-					img.m_sepia[1] = newBitmap;
-
-					image = img;
-					image.bSepiaInProgress = false;
-					bNotify = true;
-				}
-				else
-				{
-					// ASSERT(NULL);
-				}
-			}
-			if (bNotify)
-			{
-				PostMessage(WM_SEPIA_DONE);
-			}
-			}).detach();
+		}
+		pix->UnlockBits(&bitmapData);
 	}
-	else
+}
+
+void CMFCApplicationTSSDlg::CalculateSepia2(Gdiplus::Bitmap* pix)
+{
+	UINT width = pix->GetWidth();
+	UINT height = pix->GetHeight();
+
+	Gdiplus::Rect rect(0, 0, width, height);
+	Gdiplus::BitmapData bitmapData;
+
+	if (pix->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, &bitmapData) == Gdiplus::Ok)
 	{
-		delete newBitmap; // Clean up if locking failed
+		BYTE* pixels = static_cast<BYTE*>(bitmapData.Scan0);
+		int stride = bitmapData.Stride;
+
+		for (UINT y = 0; y < height; ++y)
+		{
+			for (UINT x = 0; x < width; ++x)
+			{
+				BYTE B = pixels[y * stride + x * 4];
+				BYTE G = pixels[y * stride + x * 4 + 1];
+				BYTE R = pixels[y * stride + x * 4 + 2];
+
+				double luma = (0.3 * R + 0.59 * G + 0.11 * B) / 255;
+
+				BYTE* pixel = pixels + (y * stride) + (x * 4);
+
+				int sepiaR = static_cast<int>((R * 0.393) + (G * 0.769) + (B * 0.189))*luma;
+				int sepiaG = static_cast<int>((R * 0.349) + (G * 0.686) + (B * 0.168)) * luma;
+				int sepiaB = static_cast<int>((R * 0.272) + (G * 0.534) + (B * 0.131)) * luma;
+
+				pixel[2] = static_cast<BYTE>((sepiaR < 255) ? sepiaR : 255);
+				pixel[1] = static_cast<BYTE>((sepiaG < 255) ? sepiaG : 255);
+				pixel[0] = static_cast<BYTE>((sepiaB < 255) ? sepiaB : 255);
+			}
+		}
+		pix->UnlockBits(&bitmapData);
 	}
 }
 
-
-
-void CMFCApplicationTSSDlg::CalculateSepia2(Img& image)
+void CMFCApplicationTSSDlg::CalculateSepia3(Gdiplus::Bitmap* pix)
 {
+	UINT width = pix->GetWidth();
+	UINT height = pix->GetHeight();
+
+	Gdiplus::Rect rect(0, 0, width, height);
+	Gdiplus::BitmapData bitmapData;
+
+	if (pix->LockBits(&rect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, &bitmapData) == Gdiplus::Ok)
+	{
+		BYTE* pixels = static_cast<BYTE*>(bitmapData.Scan0);
+		int stride = bitmapData.Stride;
+
+		for (UINT y = 0; y < height; ++y)
+		{
+			for (UINT x = 0; x < width; ++x)
+			{
+				BYTE B = pixels[y * stride + x * 4];
+				BYTE G = pixels[y * stride + x * 4 + 1];
+				BYTE R = pixels[y * stride + x * 4 + 2];
+
+				BYTE brownR = 112;
+				BYTE brownG = 66;
+				BYTE brownB = 20;
+
+				double intensity = 0.4;
+
+				double grey = 0.3 * R + 0.59 * G + 0.11 * B;
+
+				BYTE* pixel = pixels + (y * stride) + (x * 4);
+
+				int sepiaR = static_cast<int>(grey + (brownR - grey) * intensity) ;
+				int sepiaG = static_cast<int>(grey + (brownG - grey) * intensity);
+				int sepiaB = static_cast<int>(grey + (brownB - grey) * intensity);
+
+				pixel[2] = static_cast<BYTE>((sepiaR < 255) ? sepiaR : 255);
+				pixel[1] = static_cast<BYTE>((sepiaG < 255) ? sepiaG : 255);
+				pixel[0] = static_cast<BYTE>((sepiaB < 255) ? sepiaB : 255);
+			}
+		}
+		pix->UnlockBits(&bitmapData);
+	}
 }
 
-void CMFCApplicationTSSDlg::CalculateSepia3(Img& image)
+void CMFCApplicationTSSDlg::SepiaThread(Img& image, int which)
 {
+	std::thread([this, &image, which]() {
+		image.bSepiaInProgress = true;
+		//Sleep(5000);
+		Img img = image;
+		
+
+
+		Gdiplus::Image* newImage = img.m_image->Clone();
+		if (which == 1)
+		{
+			CalculateSepia1(static_cast<Gdiplus::Bitmap*>(newImage));
+			img.m_sepia[0] = newImage;
+		}
+		else if (which == 2) 
+		{
+			CalculateSepia2(static_cast<Gdiplus::Bitmap*>(newImage));
+			img.m_sepia[1] = newImage;
+		}
+		else
+		{
+			CalculateSepia3(static_cast<Gdiplus::Bitmap*>(newImage));
+			img.m_sepia[2] = newImage;
+		}
+		bool bNotify = false;
+		{
+			std::mutex l;
+			if (img.m_name == image.m_name)
+			{
+				image = img;
+				image.bSepiaInProgress = false;
+				bNotify = true;
+			}
+			else
+			{
+				//ASSERT(NULL);
+			}
+		}
+		if (bNotify)
+		{
+			PostMessage(WM_SEPIA_DONE);
+		}
+
+		}).detach();
 }
 
 
@@ -457,6 +535,15 @@ void CMFCApplicationTSSDlg::OnFileClose32772()
 
 	if (response == IDYES)
 	{
+		Img& image = m_images[selectedIndex];
+		for (int i = 0; i < 3; ++i)
+		{
+			if (image.m_sepia[i] != nullptr)
+			{
+				delete image.m_sepia[i];
+				image.m_sepia[i] = nullptr;
+			}
+		}
 		m_images.erase(m_images.begin() + selectedIndex);
 
 		DisplayFiles(); 
@@ -500,9 +587,9 @@ LRESULT CMFCApplicationTSSDlg::OnDrawImage(WPARAM wParam, LPARAM lParam)
 
 	if (bSepia1 || bSepia2 || bSepia3) CheckSepia(selected);
 
-	if (bSepia1) pImage = m_images[selected].m_sepia[1];
-	else if(bSepia2) pImage = m_images[selected].m_sepia[2];
-	else if (bSepia3) pImage = m_images[selected].m_sepia[3];
+	if (bSepia1) pImage = m_images[selected].m_sepia[0];
+	else if(bSepia2) pImage = m_images[selected].m_sepia[1];
+	else if (bSepia3) pImage = m_images[selected].m_sepia[2];
 	else pImage = m_images[selected].m_image;
 
 	if (pImage && pImage->GetLastStatus() == Gdiplus::Ok)
@@ -545,8 +632,8 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 		return S_OK;
 	}
 
-	const Img& selectedImg = m_images[selected];
-	if (selectedImg.m_red.empty() || selectedImg.m_green.empty() || selectedImg.m_blue.empty())
+	Img& selectedImg = m_images[selected];
+	if (!selectedImg.bCalculated)
 	{
 		return S_OK;
 	}
@@ -604,7 +691,7 @@ LRESULT CMFCApplicationTSSDlg::OnDrawHist(WPARAM wParam, LPARAM lParam)
 void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
-	Invalidate(TRUE);
+
 	if (bBlueChecked || bRedChecked || bGreenChecked)
 	{
 		int selected = m_fileList.GetNextItem(-1, LVNI_SELECTED);
@@ -612,8 +699,8 @@ void CMFCApplicationTSSDlg::OnLvnItemchangedFileList(NMHDR* pNMHDR, LRESULT* pRe
 		{
 			CheckHistogram(m_images[selected]);
 		}
-		Invalidate(TRUE);
 	}
+	Invalidate(TRUE);
 	*pResult = 0;
 }
 
@@ -678,7 +765,9 @@ void CMFCApplicationTSSDlg::OnImageSepia1()
 {
 	if (bSepia1)return;
 	CMenu* pMenu = GetMenu();
-	bSepia1 = !bSepia1;
+	bSepia1 = true;
+	bSepia2 = false;
+	bSepia3 = false;
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA1,MF_CHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA2, MF_UNCHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA3, MF_UNCHECKED);
@@ -697,7 +786,9 @@ void CMFCApplicationTSSDlg::OnImageSepia2()
 {
 	if (bSepia2)return;
 	CMenu* pMenu = GetMenu();
-	bSepia2 = !bSepia2;
+	bSepia1 = false;
+	bSepia2 = true;
+	bSepia3 = false;
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA2,MF_CHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA1, MF_UNCHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA3, MF_UNCHECKED);
@@ -716,7 +807,9 @@ void CMFCApplicationTSSDlg::OnImageSepia3()
 {
 	if (bSepia3)return;
 	CMenu* pMenu = GetMenu();
-	bSepia3 != bSepia3;
+	bSepia1 = false;
+	bSepia2 = false;
+	bSepia3 = true;
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA3,  MF_CHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA2, MF_UNCHECKED);
 	pMenu->CheckMenuItem(ID_IMAGE_SEPIA1, MF_UNCHECKED);
